@@ -1,10 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#171717">
+  <meta name="description" content="Celestial Hub key authorization system.">
   <title>Celestial Hub | Key System</title>
   <style>
     * { box-sizing: border-box; }
@@ -20,15 +20,9 @@
       padding: 22px;
     }
 
-    .container {
-      width: 100%;
-      max-width: 430px;
-    }
+    .container { width: 100%; max-width: 430px; }
 
-    .brand {
-      text-align: center;
-      margin-bottom: 34px;
-    }
+    .brand { text-align: center; margin-bottom: 34px; }
 
     .logo {
       width: 58px;
@@ -42,17 +36,8 @@
       background: #242424;
     }
 
-    h1 {
-      font-size: 24px;
-      letter-spacing: 2px;
-      margin: 0 0 9px;
-    }
-
-    .subtitle {
-      color: #999;
-      font-size: 13px;
-      letter-spacing: 1.5px;
-    }
+    h1 { font-size: 24px; letter-spacing: 2px; margin: 0 0 9px; }
+    .subtitle { color: #999; font-size: 13px; letter-spacing: 1.5px; }
 
     .panel {
       border: 1px solid #393939;
@@ -61,10 +46,7 @@
       padding: 24px;
     }
 
-    h2 {
-      font-size: 19px;
-      margin: 0 0 10px;
-    }
+    h2 { font-size: 19px; margin: 0 0 10px; }
 
     .description {
       color: #aaa;
@@ -102,9 +84,18 @@
       font-weight: bold;
       letter-spacing: 1px;
       cursor: pointer;
+      transition: opacity .15s ease, transform .15s ease;
     }
 
-    button:active { transform: scale(.98); }
+    button:active:not(:disabled) { transform: scale(.98); }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+
+    .secondary-button {
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid #505050;
+      color: #ddd;
+    }
 
     .notice {
       color: #999;
@@ -112,26 +103,34 @@
       line-height: 1.6;
       text-align: center;
       margin-top: 18px;
+      overflow-wrap: anywhere;
     }
 
-    footer {
-      color: #666;
-      text-align: center;
-      font-size: 11px;
-      margin-top: 25px;
+    .key-output {
+      display: block;
+      margin-top: 8px;
+      padding: 10px;
+      border: 1px solid #454545;
+      border-radius: 8px;
+      background: #171717;
+      color: #f5f5f5;
+      overflow-wrap: anywhere;
+      user-select: text;
     }
+
+    footer { color: #666; text-align: center; font-size: 11px; margin-top: 25px; }
   </style>
 </head>
 <body>
   <main class="container">
     <header class="brand">
-      <div class="logo">✦</div>
+      <div class="logo" aria-hidden="true">✦</div>
       <h1>CELESTIAL HUB</h1>
       <div class="subtitle">KEY SYSTEM</div>
     </header>
 
-    <section class="panel">
-      <h2>Welcome to CH.</h2>
+    <section class="panel" aria-labelledby="panelTitle">
+      <h2 id="panelTitle">Welcome to CH.</h2>
       <p class="description">
         Manage your access to Celestial Hub
         through our key authorization system.
@@ -140,7 +139,7 @@
       <div class="info">
         <div class="info-row">
           <span class="muted">System status</span>
-          <span>Interface preview</span>
+          <strong id="systemStatus">Checking...</strong>
         </div>
         <div class="info-row">
           <span class="muted">Key duration</span>
@@ -152,23 +151,145 @@
         </div>
       </div>
 
-      <button id="getKey">GET YOUR KEY</button>
+      <button id="getKey" type="button">CONTINUE WITH DISCORD</button>
+      <button id="signOut" class="secondary-button" type="button" hidden>DISCONNECT</button>
 
-      <p class="notice" id="message">
-        The key service is not connected yet.
+      <p class="notice" id="message" role="status" aria-live="polite">
+        Connect your Discord account to continue.
       </p>
     </section>
 
-    <footer>
-      CELESTIAL HUB · 2026
-    </footer>
+    <footer>CELESTIAL HUB · 2026</footer>
   </main>
 
+  <!-- Supabase's publishable key is intended for frontend use. Never put a secret/service-role key here. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    document.getElementById("getKey").addEventListener("click", () => {
-      document.getElementById("message").textContent =
-        "The key service is not configured yet. Please check back later.";
-    });
+    const SUPABASE_URL = "https://akxyyptodcswvrghuzbi.supabase.co";
+    // Replace this placeholder with the project's Publishable key (sb_publishable_...) or legacy anon key.
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-z3JDrLnbW_dKb44qAu8JQ_nZb85XVs";
+
+    const button = document.getElementById("getKey");
+    const signOutButton = document.getElementById("signOut");
+    const message = document.getElementById("message");
+    const systemStatus = document.getElementById("systemStatus");
+
+    let supabaseClient = null;
+    let currentSession = null;
+    let busy = false;
+
+    function setMessage(text) {
+      message.textContent = text;
+    }
+
+    function showKey(key) {
+      message.replaceChildren(document.createTextNode("Your 7-day key. Save it somewhere safe:"));
+      const output = document.createElement("code");
+      output.className = "key-output";
+      output.textContent = key;
+      message.appendChild(output);
+    }
+
+    function renderSession(session) {
+      currentSession = session;
+      const signedIn = Boolean(session && session.user);
+      button.textContent = signedIn ? "GET YOUR KEY" : "CONTINUE WITH DISCORD";
+      signOutButton.hidden = !signedIn;
+      systemStatus.textContent = signedIn ? "Discord connected" : "Ready for sign-in";
+
+      if (signedIn) {
+        const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name || "Discord user";
+        setMessage("Signed in as " + name + ". Your key service will be checked when you request a key.");
+      } else {
+        setMessage("Connect your Discord account to continue.");
+      }
+    }
+
+    if (!window.supabase || !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY === "PEGA_AQUI_LA_PUBLISHABLE_KEY") {
+      systemStatus.textContent = "Setup required";
+      button.disabled = true;
+      setMessage("Setup required: add the Supabase Publishable key to this file before using Discord sign-in.");
+    } else {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+
+      button.addEventListener("click", async () => {
+        if (busy) return;
+        busy = true;
+        button.disabled = true;
+        const originalText = button.textContent;
+
+        try {
+          if (!currentSession) {
+            button.textContent = "CONNECTING...";
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+              provider: "discord",
+              options: { redirectTo: window.location.origin }
+            });
+            if (error) throw error;
+            return; // OAuth redirects the browser to Discord.
+          }
+
+          button.textContent = "CHECKING KEY SERVICE...";
+          const { data, error } = await supabaseClient.functions.invoke("create-key", {
+            body: {}
+          });
+
+          if (error) {
+            console.error("Key service error:", error);
+            setMessage("Discord sign-in is working, but the secure key-generation service is not ready or returned an error. The create-key Edge Function must be deployed first.");
+            return;
+          }
+
+          if (data && typeof data.key === "string" && data.key.length > 0) {
+            showKey(data.key);
+          } else {
+            console.error("Unexpected key service response:", data);
+            setMessage("The key service responded, but did not return a key. Check the create-key Edge Function response.");
+          }
+        } catch (error) {
+          console.error("Celestial Hub sign-in/key error:", error);
+          setMessage("Something went wrong. Check the Supabase provider settings and browser console for details.");
+        } finally {
+          busy = false;
+          button.disabled = false;
+          if (button.textContent === "CONNECTING..." || button.textContent === "CHECKING KEY SERVICE...") {
+            button.textContent = originalText;
+          }
+        }
+      });
+
+      signOutButton.addEventListener("click", async () => {
+        signOutButton.disabled = true;
+        const { error } = await supabaseClient.auth.signOut();
+        signOutButton.disabled = false;
+        if (error) {
+          console.error("Sign-out error:", error);
+          setMessage("Could not disconnect right now. Please try again.");
+        } else {
+          renderSession(null);
+        }
+      });
+
+      supabaseClient.auth.getSession().then(({ data, error }) => {
+        if (error) {
+          console.error("Session check error:", error);
+          systemStatus.textContent = "Connection issue";
+          setMessage("Could not check your session. Verify the Supabase configuration and refresh the page.");
+          return;
+        }
+        renderSession(data.session);
+      });
+
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        renderSession(session);
+      });
+    }
   </script>
 </body>
 </html>
