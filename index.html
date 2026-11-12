@@ -184,10 +184,8 @@
     </section>
 
     <footer>CELESTIAL HUB · 2026</footer>
-
   </main>
 
-  <!-- Supabase JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
@@ -200,6 +198,13 @@
 
     const SUPABASE_PUBLISHABLE_KEY =
       "sb_publishable_-z3JDrLnbW_dKb44qAu8JQ_nZb85XVs";
+
+    // Correct GitHub Pages URL
+    const REDIRECT_URL =
+      "https://cloudysday2011-crypto.github.io/CH-key-System/";
+
+    // Edge Function name
+    const KEY_FUNCTION = "smooth-function";
 
     // ==========================================
     // DOM ELEMENTS
@@ -230,24 +235,23 @@
       );
 
       const output = document.createElement("code");
-
       output.className = "key-output";
       output.textContent = key;
 
       message.appendChild(output);
 
       const copyButton = document.createElement("button");
-
       copyButton.className = "secondary-button";
       copyButton.textContent = "COPY KEY";
-      copyButton.style.marginTop = "10px";
 
       copyButton.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(key);
           copyButton.textContent = "COPIED!";
         } catch (error) {
-          setMessage("Copy failed. Select and copy your key manually.");
+          setMessage(
+            "Copy failed. Select and copy your key manually."
+          );
         }
       });
 
@@ -297,12 +301,9 @@
     ) {
 
       systemStatus.textContent = "Setup required";
-
       button.disabled = true;
 
-      setMessage(
-        "Supabase configuration is missing."
-      );
+      setMessage("Supabase configuration is missing.");
 
     } else {
 
@@ -333,7 +334,7 @@
 
         try {
 
-          // STEP 1: DISCORD AUTHENTICATION
+          // STEP 1: DISCORD LOGIN
 
           if (!currentSession) {
 
@@ -344,7 +345,7 @@
                 provider: "discord",
 
                 options: {
-                  redirectTo: window.location.origin
+                  redirectTo: REDIRECT_URL
                 }
               });
 
@@ -353,7 +354,7 @@
             return;
           }
 
-          // STEP 2: VERIFY SESSION
+          // STEP 2: VERIFY AUTHENTICATION
 
           button.textContent = "VERIFYING SESSION...";
 
@@ -369,7 +370,6 @@
           if (!session || !session.access_token) {
 
             currentSession = null;
-
             renderSession(null);
 
             throw new Error(
@@ -379,19 +379,19 @@
 
           currentSession = session;
 
-          // STEP 3: CALL THE CORRECT EDGE FUNCTION
+          // STEP 3: CALL EDGE FUNCTION
 
           button.textContent = "GENERATING YOUR KEY...";
 
           const { data, error } =
             await supabaseClient.functions.invoke(
-              "smooth-function",
+              KEY_FUNCTION,
               {
                 body: {}
               }
             );
 
-          // STEP 4: HANDLE FUNCTION ERRORS
+          // STEP 4: HANDLE ERRORS
 
           if (error) {
 
@@ -400,25 +400,23 @@
             let serverError = null;
 
             try {
-              if (error.context) {
-                const response =
-                  typeof error.context.json === "function"
-                    ? error.context.clone()
-                    : null;
-
-                if (response) {
-                  serverError = await response.json();
-                }
+              if (
+                error.context &&
+                typeof error.context.clone === "function"
+              ) {
+                serverError = await error.context.clone().json();
               }
             } catch (_) {
-              // Response body could not be parsed.
+              // Response could not be parsed.
             }
 
-            if (serverError?.error === "An active key already exists.") {
+            if (
+              serverError?.error ===
+              "An active key already exists."
+            ) {
 
               setMessage(
-                "You already have an active key. " +
-                "Expires at: " +
+                "You already have an active key. Expires at: " +
                 (serverError.expires_at || "Check your account.")
               );
 
@@ -452,7 +450,7 @@
             return;
           }
 
-          // STEP 5: DISPLAY GENERATED KEY
+          // STEP 5: DISPLAY KEY
 
           if (
             data &&
@@ -461,7 +459,6 @@
           ) {
 
             showKey(data.key);
-
             systemStatus.textContent = "Key generated";
 
           } else {
@@ -478,10 +475,7 @@
 
         } catch (error) {
 
-          console.error(
-            "Celestial Hub error:",
-            error
-          );
+          console.error("Celestial Hub error:", error);
 
           setMessage(
             error.message ||
@@ -491,7 +485,6 @@
         } finally {
 
           busy = false;
-
           button.disabled = false;
 
           if (
@@ -522,7 +515,6 @@
           if (error) throw error;
 
           renderSession(null);
-
           systemStatus.textContent = "Disconnected";
 
         } catch (error) {
@@ -541,7 +533,7 @@
       });
 
       // ==========================================
-      // RESTORE EXISTING SESSION
+      // RESTORE SESSION
       // ==========================================
 
       supabaseClient.auth.getSession().then(
@@ -549,10 +541,7 @@
 
           if (error) {
 
-            console.error(
-              "Session check error:",
-              error
-            );
+            console.error("Session check error:", error);
 
             systemStatus.textContent = "Connection issue";
 
@@ -573,14 +562,10 @@
 
       supabaseClient.auth.onAuthStateChange(
         (_event, session) => {
-
           renderSession(session);
-
         }
       );
-
     }
   </script>
-
 </body>
 </html>
