@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,6 +7,7 @@
   <meta name="theme-color" content="#171717">
   <meta name="description" content="Celestial Hub key authorization system.">
   <title>Celestial Hub | Key System</title>
+
   <style>
     * { box-sizing: border-box; }
 
@@ -118,11 +120,18 @@
       user-select: text;
     }
 
-    footer { color: #666; text-align: center; font-size: 11px; margin-top: 25px; }
+    footer {
+      color: #666;
+      text-align: center;
+      font-size: 11px;
+      margin-top: 25px;
+    }
   </style>
 </head>
+
 <body>
   <main class="container">
+
     <header class="brand">
       <div class="logo" aria-hidden="true">✦</div>
       <h1>CELESTIAL HUB</h1>
@@ -130,7 +139,9 @@
     </header>
 
     <section class="panel" aria-labelledby="panelTitle">
+
       <h2 id="panelTitle">Welcome to CH.</h2>
+
       <p class="description">
         Manage your access to Celestial Hub
         through our key authorization system.
@@ -141,33 +152,58 @@
           <span class="muted">System status</span>
           <strong id="systemStatus">Checking...</strong>
         </div>
+
         <div class="info-row">
           <span class="muted">Key duration</span>
           <strong>7 days</strong>
         </div>
+
         <div class="info-row">
           <span class="muted">Access type</span>
           <strong>Individual</strong>
         </div>
       </div>
 
-      <button id="getKey" type="button">CONTINUE WITH DISCORD</button>
-      <button id="signOut" class="secondary-button" type="button" hidden>DISCONNECT</button>
+      <button id="getKey" type="button">
+        CONTINUE WITH DISCORD
+      </button>
+
+      <button
+        id="signOut"
+        class="secondary-button"
+        type="button"
+        hidden
+      >
+        DISCONNECT
+      </button>
 
       <p class="notice" id="message" role="status" aria-live="polite">
         Connect your Discord account to continue.
       </p>
+
     </section>
 
     <footer>CELESTIAL HUB · 2026</footer>
+
   </main>
 
-  <!-- Supabase's publishable key is intended for frontend use. Never put a secret/service-role key here. -->
+  <!-- Supabase JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <script>
-    const SUPABASE_URL = "https://akxyyptodcswvrghuzbi.supabase.co";
-    // Replace this placeholder with the project's Publishable key (sb_publishable_...) or legacy anon key.
-    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-z3JDrLnbW_dKb44qAu8JQ_nZb85XVs";
+    // ==========================================
+    // SUPABASE CONFIGURATION
+    // ==========================================
+
+    const SUPABASE_URL =
+      "https://akxyyptodcswvrghuzbi.supabase.co";
+
+    const SUPABASE_PUBLISHABLE_KEY =
+      "sb_publishable_-z3JDrLnbW_dKb44qAu8JQ_nZb85XVs";
+
+    // ==========================================
+    // DOM ELEMENTS
+    // ==========================================
 
     const button = document.getElementById("getKey");
     const signOutButton = document.getElementById("signOut");
@@ -178,118 +214,373 @@
     let currentSession = null;
     let busy = false;
 
+    // ==========================================
+    // UI HELPERS
+    // ==========================================
+
     function setMessage(text) {
       message.textContent = text;
     }
 
     function showKey(key) {
-      message.replaceChildren(document.createTextNode("Your 7-day key. Save it somewhere safe:"));
+      message.replaceChildren(
+        document.createTextNode(
+          "Your 7-day key. Save it somewhere safe:"
+        )
+      );
+
       const output = document.createElement("code");
+
       output.className = "key-output";
       output.textContent = key;
+
       message.appendChild(output);
+
+      const copyButton = document.createElement("button");
+
+      copyButton.className = "secondary-button";
+      copyButton.textContent = "COPY KEY";
+      copyButton.style.marginTop = "10px";
+
+      copyButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(key);
+          copyButton.textContent = "COPIED!";
+        } catch (error) {
+          setMessage("Copy failed. Select and copy your key manually.");
+        }
+      });
+
+      message.appendChild(copyButton);
     }
 
     function renderSession(session) {
       currentSession = session;
+
       const signedIn = Boolean(session && session.user);
-      button.textContent = signedIn ? "GET YOUR KEY" : "CONTINUE WITH DISCORD";
+
+      button.textContent = signedIn
+        ? "GET YOUR KEY"
+        : "CONTINUE WITH DISCORD";
+
       signOutButton.hidden = !signedIn;
-      systemStatus.textContent = signedIn ? "Discord connected" : "Ready for sign-in";
+
+      systemStatus.textContent = signedIn
+        ? "Discord connected"
+        : "Ready for sign-in";
 
       if (signedIn) {
-        const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name || "Discord user";
-        setMessage("Signed in as " + name + ". Your key service will be checked when you request a key.");
+        const metadata = session.user.user_metadata || {};
+
+        const name =
+          metadata.full_name ||
+          metadata.name ||
+          metadata.user_name ||
+          "Discord user";
+
+        setMessage(
+          "Signed in as " + name +
+          ". You can now request your Celestial Hub key."
+        );
       } else {
         setMessage("Connect your Discord account to continue.");
       }
     }
 
-    if (!window.supabase || !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY === "PEGA_AQUI_LA_PUBLISHABLE_KEY") {
+    // ==========================================
+    // INITIALIZE SUPABASE
+    // ==========================================
+
+    if (
+      !window.supabase ||
+      !SUPABASE_PUBLISHABLE_KEY
+    ) {
+
       systemStatus.textContent = "Setup required";
+
       button.disabled = true;
-      setMessage("Setup required: add the Supabase Publishable key to this file before using Discord sign-in.");
+
+      setMessage(
+        "Supabase configuration is missing."
+      );
+
     } else {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
+
+      supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
         }
-      });
+      );
+
+      // ==========================================
+      // DISCORD LOGIN / KEY GENERATION
+      // ==========================================
 
       button.addEventListener("click", async () => {
+
         if (busy) return;
+
         busy = true;
         button.disabled = true;
+
         const originalText = button.textContent;
 
         try {
+
+          // STEP 1: DISCORD AUTHENTICATION
+
           if (!currentSession) {
+
             button.textContent = "CONNECTING...";
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-              provider: "discord",
-              options: { redirectTo: window.location.origin }
-            });
+
+            const { error } =
+              await supabaseClient.auth.signInWithOAuth({
+                provider: "discord",
+
+                options: {
+                  redirectTo: window.location.origin
+                }
+              });
+
             if (error) throw error;
-            return; // OAuth redirects the browser to Discord.
-          }
 
-          button.textContent = "CHECKING KEY SERVICE...";
-          const { data, error } = await supabaseClient.functions.invoke("create-key", {
-            body: {}
-          });
-
-          if (error) {
-            console.error("Key service error:", error);
-            setMessage("Discord sign-in is working, but the secure key-generation service is not ready or returned an error. The create-key Edge Function must be deployed first.");
             return;
           }
 
-          if (data && typeof data.key === "string" && data.key.length > 0) {
-            showKey(data.key);
-          } else {
-            console.error("Unexpected key service response:", data);
-            setMessage("The key service responded, but did not return a key. Check the create-key Edge Function response.");
+          // STEP 2: VERIFY SESSION
+
+          button.textContent = "VERIFYING SESSION...";
+
+          const {
+            data: sessionData,
+            error: sessionError
+          } = await supabaseClient.auth.getSession();
+
+          if (sessionError) throw sessionError;
+
+          const session = sessionData.session;
+
+          if (!session || !session.access_token) {
+
+            currentSession = null;
+
+            renderSession(null);
+
+            throw new Error(
+              "Authentication session expired. Please reconnect."
+            );
           }
+
+          currentSession = session;
+
+          // STEP 3: CALL THE CORRECT EDGE FUNCTION
+
+          button.textContent = "GENERATING YOUR KEY...";
+
+          const { data, error } =
+            await supabaseClient.functions.invoke(
+              "smooth-function",
+              {
+                body: {}
+              }
+            );
+
+          // STEP 4: HANDLE FUNCTION ERRORS
+
+          if (error) {
+
+            console.error("Key service error:", error);
+
+            let serverError = null;
+
+            try {
+              if (error.context) {
+                const response =
+                  typeof error.context.json === "function"
+                    ? error.context.clone()
+                    : null;
+
+                if (response) {
+                  serverError = await response.json();
+                }
+              }
+            } catch (_) {
+              // Response body could not be parsed.
+            }
+
+            if (serverError?.error === "An active key already exists.") {
+
+              setMessage(
+                "You already have an active key. " +
+                "Expires at: " +
+                (serverError.expires_at || "Check your account.")
+              );
+
+              return;
+            }
+
+            if (error.context?.status === 401) {
+
+              setMessage(
+                "Authentication failed. Please reconnect your Discord account."
+              );
+
+              return;
+            }
+
+            if (error.context?.status === 409) {
+
+              setMessage(
+                serverError?.error ||
+                "An active key already exists."
+              );
+
+              return;
+            }
+
+            setMessage(
+              serverError?.error ||
+              "The key service returned an error. Check Supabase Edge Function logs."
+            );
+
+            return;
+          }
+
+          // STEP 5: DISPLAY GENERATED KEY
+
+          if (
+            data &&
+            typeof data.key === "string" &&
+            data.key.length > 0
+          ) {
+
+            showKey(data.key);
+
+            systemStatus.textContent = "Key generated";
+
+          } else {
+
+            console.error(
+              "Unexpected key service response:",
+              data
+            );
+
+            setMessage(
+              "The key service responded, but did not return a valid key."
+            );
+          }
+
         } catch (error) {
-          console.error("Celestial Hub sign-in/key error:", error);
-          setMessage("Something went wrong. Check the Supabase provider settings and browser console for details.");
+
+          console.error(
+            "Celestial Hub error:",
+            error
+          );
+
+          setMessage(
+            error.message ||
+            "Something went wrong. Check your Supabase configuration."
+          );
+
         } finally {
+
           busy = false;
+
           button.disabled = false;
-          if (button.textContent === "CONNECTING..." || button.textContent === "CHECKING KEY SERVICE...") {
+
+          if (
+            button.textContent === "CONNECTING..." ||
+            button.textContent === "VERIFYING SESSION..." ||
+            button.textContent === "GENERATING YOUR KEY..."
+          ) {
             button.textContent = originalText;
           }
         }
       });
 
+      // ==========================================
+      // DISCONNECT ACCOUNT
+      // ==========================================
+
       signOutButton.addEventListener("click", async () => {
+
+        if (busy) return;
+
         signOutButton.disabled = true;
-        const { error } = await supabaseClient.auth.signOut();
-        signOutButton.disabled = false;
-        if (error) {
-          console.error("Sign-out error:", error);
-          setMessage("Could not disconnect right now. Please try again.");
-        } else {
+
+        try {
+
+          const { error } =
+            await supabaseClient.auth.signOut();
+
+          if (error) throw error;
+
           renderSession(null);
+
+          systemStatus.textContent = "Disconnected";
+
+        } catch (error) {
+
+          console.error("Sign-out error:", error);
+
+          setMessage(
+            "Could not disconnect right now. Please try again."
+          );
+
+        } finally {
+
+          signOutButton.disabled = false;
+
         }
       });
 
-      supabaseClient.auth.getSession().then(({ data, error }) => {
-        if (error) {
-          console.error("Session check error:", error);
-          systemStatus.textContent = "Connection issue";
-          setMessage("Could not check your session. Verify the Supabase configuration and refresh the page.");
-          return;
-        }
-        renderSession(data.session);
-      });
+      // ==========================================
+      // RESTORE EXISTING SESSION
+      // ==========================================
 
-      supabaseClient.auth.onAuthStateChange((_event, session) => {
-        renderSession(session);
-      });
+      supabaseClient.auth.getSession().then(
+        ({ data, error }) => {
+
+          if (error) {
+
+            console.error(
+              "Session check error:",
+              error
+            );
+
+            systemStatus.textContent = "Connection issue";
+
+            setMessage(
+              "Could not check your session. Refresh the page and try again."
+            );
+
+            return;
+          }
+
+          renderSession(data.session);
+        }
+      );
+
+      // ==========================================
+      // AUTH STATE LISTENER
+      // ==========================================
+
+      supabaseClient.auth.onAuthStateChange(
+        (_event, session) => {
+
+          renderSession(session);
+
+        }
+      );
+
     }
   </script>
+
 </body>
 </html>
